@@ -1,13 +1,9 @@
 ## DEPENDENCES
  - node v8+
 
-## INSTALLATION
-```bash
-npm i -S @AcmeCryptoScope/ipGeo
-```
 ## USAGE
 ```bash
-const IpGeo = require('@AcmeCryptoScope/ipGeo');
+const IpGeo = require('build/index.js');
 const geo = new IpGeo({ checkDbUpdate: true, language: 'en' });
 
 const geoMiddleware = async (req, res, next) => {
