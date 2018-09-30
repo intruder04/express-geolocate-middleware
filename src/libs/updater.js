@@ -5,13 +5,9 @@ const zlib = require('zlib');
 const path = require('path');
 const { URL } = require('url');
 
-const ENVIRONMENT = process.env.NODE_ENV || 'test';
-const config = require('../config/config')[ENVIRONMENT];
-
-// console.log(`Running update script with config: ${JSON.stringify(config)}`)
+const config = require('../config/config');
 
 const checkUpdate = (remote, local): any => {
-  // console.log('local', local);
   
   return new Promise((resolve, reject): Promise<boolean> => {
     let stats = null;
@@ -20,7 +16,8 @@ const checkUpdate = (remote, local): any => {
       stats = fs.statSync(local);
     // no file - need to update
     } else {
-      console.log('no file found - downloading');
+      console.log('Geo: No DB file found - downloading');
+      fs.mkdirSync(path.dirname(local));
       return resolve(true);
     }
 
@@ -39,10 +36,10 @@ const checkUpdate = (remote, local): any => {
     https.get(options, (response): boolean => {
       // console.log('code', response.statusCode);
       if (response.statusCode === 304) {
-          console.log('Not modified!');
+          console.log('Geo: Remote DB is not modified!');
           resolve(false);
       } else {
-        console.log('Modified!');
+        console.log('Geo: Remote DB is newer!');
         resolve(true);
       }
       
@@ -60,7 +57,7 @@ const download = (url, dest): any => {
           } else {
               file.close();
               fs.unlink(dest, () => {}); // Delete temp file
-              reject(new Error(`Server responded with ${response.statusCode}: ${response.statusMessage}`));
+              reject(new Error(`Geo: Server responded with ${response.statusCode}: ${response.statusMessage}`));
           }
       });
 
@@ -78,7 +75,7 @@ const download = (url, dest): any => {
           file.close();
 
           if (err.code === "EEXIST") {
-              reject(new Error("File already exists"));
+              reject(new Error("Geo: File already exists"));
           } else {
               fs.unlink(dest, () => {}); // Delete temp file
               reject(err.message);
@@ -88,13 +85,11 @@ const download = (url, dest): any => {
 }
 
 const update = async () => {
-  console.log('in updater!');
-  
-  const localPath = path.join(config.mmdb.localPath, config.mmdb.localName);
+  const localPath = path.join(__dirname, '..', '..', config.mmdb.localPath, config.mmdb.localName);
   const needToUpdate = await checkUpdate(config.mmdb.remote, localPath);
 
   if (needToUpdate) {
-    console.log('removing local file and downloading a new one');
+    console.log('Geo: Downloading new DB');
     fs.unlink(localPath, () => {});
     await download(config.mmdb.remote, localPath);
   }

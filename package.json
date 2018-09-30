@@ -1,8 +1,8 @@
 {
-  "name": "ip2geo",
-  "version": "1.0.0",
+  "name": "express-geolocate-middleware",
+  "version": "1.1.7",
   "description": "Get location from ip",
-  "main": "./build/index.js",
+  "main": "./build/location.js",
   "scripts": {
     "dev": "npm run build && node test/test.js",
     "flow": "flow",
@@ -20,13 +20,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@git.office:viktorm/ip2geo.git"
+    "url": "https://github.com/intruder04/express-geolocate-middleware.git"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@AcmeCryptoScope/clickHouseStream": "^1.0.1",
-    "@AcmeCryptoScope/logger": "^1.0.3",
     "babel-eslint": "^8.2.6",
     "eslint": "^5.3.0",
     "eslint-config-airbnb": "^17.1.0",
@@ -42,6 +40,8 @@
     "flow-typed": "^2.5.1"
   },
   "dependencies": {
-    "mmdb-reader": "^1.2.0"
+    "mmdb-reader": "^1.2.0",
+    "tor-detect": "^1.0.2",
+    "useragent": "^2.3.0"
   }
 }

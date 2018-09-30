@@ -1,12 +1,29 @@
 // @flow
-/* eslint class-methods-use-this: 0 */
-import type { $Request } from 'express';
+
+import type {
+    $Request
+} from 'express';
 
 const MMDBReader = require('mmdb-reader');
 const fs = require('fs');
+const path = require('path');
+const useragent = require('useragent');
+const torDetect = require('tor-detect');
 const dbUpdater = require('./libs/updater');
 
+const config = require('./config/config');
+
 const isObject = (obj: Object): boolean => obj === Object(obj);
+
+const getHostName = (url) => {
+    var match = url.match(/:\/\/(www[0-9]?\.)?(.[^/:]+)/i);
+    if (match != null && match.length > 2 && typeof match[2] === 'string' && match[2].length > 0) {
+    return match[2];
+    }
+    else {
+        return null;
+    }
+}
 
 class Ip2Geo {
     reader: any
@@ -20,20 +37,20 @@ class Ip2Geo {
     // init and load location db in memory
     constructor(options: Object) {
         this.checkOptions(options);
-        const { checkDbUpdate = false, language = 'en' } = options;
+        const {
+            checkDbUpdate = false, language = 'en'
+        } = options;
         this.reader = null;
         this.checkDbUpdate = checkDbUpdate;
-        this.dbPath = './geo_db/GeoLite2-City.mmdb';
+        this.dbPath = path.join(__dirname, '..', config.mmdb.localPath, config.mmdb.localName);
         this.language = language;
     }
 
-    async initialize(): Promise<any> {
-        console.log('in initialize method!');
-        if (this.checkDbUpdate && this.reader === null) {   
-            console.log('calling updater!');       
+    async initialize(): Promise < any > {
+        if (this.checkDbUpdate && this.reader === null) {
             await dbUpdater.update();
         }
-        
+
         if (fs.existsSync(this.dbPath)) {
             this.reader = new MMDBReader(this.dbPath);
         } else {
@@ -41,7 +58,7 @@ class Ip2Geo {
         }
     }
 
-    checkOptions (options: Object) {
+    checkOptions(options: Object) {
         if (!isObject(options)) {
             throw new TypeError('Please provide options object');
         }
@@ -65,14 +82,14 @@ class Ip2Geo {
     }
 
     // get full mmdb-reader location object. Null if not found
-    async lookupLocation(ip: string): Object {        
-        await this.getReader();   // load db
+    async lookupLocation(ip: string): Object {
+        await this.getReader(); // load db
         return this.reader.lookup(ip);
     }
 
     parseLocationData(loc: Object, language: string): Object {
         const result = {};
-        if(loc !== null) {
+        if (loc !== null) {
             result.ip = loc.ip ? loc.ip : null;
             result.city = loc.city ? loc.city.names[language] : null;
             result.continent = loc.continent ? loc.continent.names[language] : null;
@@ -80,15 +97,15 @@ class Ip2Geo {
             result.latitude = loc.location ? `${loc.location.latitude}` : null;
             result.longitude = loc.location ? `${loc.location.longitude}` : null;
             result.postal_code = loc.postal ? loc.postal.code : null;
-        } else {
-            result.error = 'Location not found';
+            result.state = loc.subdivisions[0] ? loc.subdivisions[0].names[language] : null;
         }
+
         return result;
     }
 
     // main method
     async locate(ip: string): Object {
-        const loc = await this.lookupLocation(ip);        
+        const loc = await this.lookupLocation(ip);
         const parsedLoc = this.parseLocationData(loc, this.language);
         parsedLoc.ip = ip;
         return parsedLoc;
@@ -96,18 +113,66 @@ class Ip2Geo {
 
     async exprMiddleware(req: $Request): Object {
         try {
+            let remoteIp = (req.headers['x-forwarded-for'] || '').split(',').pop() ||
+                req.connection.remoteAddress ||
+                req.socket.remoteAddress ||
+                req.connection.socket.remoteAddress;
+
+            if (remoteIp.substr(0, 7) === "::ffff:") {
+                remoteIp = remoteIp.substr(7)
+            }
+
+            // remoteIp = '89.189.10.242'; // default for tests
+
+            const visit = await this.locate(remoteIp);
+            visit.path = req.originalUrl;
+            visit.domain = req.get('host');
+            visit.method = req.method;
+            visit.params = JSON.stringify(req.params);
+            visit.query = JSON.stringify(req.query);
+            visit.cookie = JSON.stringify(req.cookies);
+            visit.referrer = req.headers.referrer || req.headers.referer;
+
+            if (visit.referrer) {
+                visit.referrerDomain = getHostName(visit.referrer);
+            }
+
+            if (req.query.refId) {
+                visit.refId = req.query.refId;
+            }
+
+            if (req.query.subId) {
+                visit.subId = req.query.subId;
+            }
+
+            // check if ip is note exit node
+            const isTor = await torDetect(remoteIp);
+            visit.isTor = isTor;
+
+            // session stuff
+            if (req.session) {
+                if (req.session.uuid) {
+                    visit.sessionId = req.session.uuid;
+                }
+            }
+
+            if (req.uuidAction) {
+                visit.uuidAction = req.uuidAction;
+            }
+
+            // user agent stuff
             const userAgent = req.get('User-Agent');
-            const path = req.originalUrl;
-            const domain = req.get('host');
-            // const remoteIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-        
-            const ip = '89.189.10.242'; // default for tests
-    
-            const location = await this.locate(ip);
-            location.userAgent = userAgent;
-            location.path = path;
-            location.domain = domain;
-            return location;
+            const userAgentParsed = useragent.parse(userAgent);
+
+            visit.userAgent = userAgent;
+            visit.browser = userAgentParsed.family;
+            visit.browserVersion = userAgentParsed.toVersion();
+            visit.device = userAgentParsed.device.family;
+            visit.deviceVersion = userAgentParsed.device.toVersion();
+            visit.os = userAgentParsed.os.family;
+            visit.osVersion = userAgentParsed.os.toVersion();
+
+            return visit;
         } catch (error) {
             throw new Error(`Something wrong in exprMiddleware: ${error}`);
         }
@@ -116,4 +181,3 @@ class Ip2Geo {
 }
 
 module.exports = Ip2Geo;
-
