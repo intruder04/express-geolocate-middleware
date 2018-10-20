@@ -1,4 +1,5 @@
 // @flow
+/* eslint class-methods-use-this: 0 */
 
 import type {
     $Request
@@ -15,14 +16,12 @@ const config = require('./config/config');
 
 const isObject = (obj: Object): boolean => obj === Object(obj);
 
-const getHostName = (url) => {
-    var match = url.match(/:\/\/(www[0-9]?\.)?(.[^/:]+)/i);
+const getHostName = (url: string): (string | null) => {
+    const match = url.match(/:\/\/(www[0-9]?\.)?(.[^/:]+)/i);
     if (match != null && match.length > 2 && typeof match[2] === 'string' && match[2].length > 0) {
-    return match[2];
+        return match[2];
     }
-    else {
-        return null;
-    }
+    return null;
 }
 
 class Ip2Geo {
@@ -46,7 +45,7 @@ class Ip2Geo {
         this.language = language;
     }
 
-    async initialize(): Promise < any > {
+    async initialize(): Promise<any> {
         if (this.checkDbUpdate && this.reader === null) {
             await dbUpdater.update();
         }
@@ -150,14 +149,14 @@ class Ip2Geo {
             visit.isTor = isTor;
 
             // session stuff
-            if (req.session) {
-                if (req.session.uuid) {
-                    visit.sessionId = req.session.uuid;
+            if ((req: Object).session) {
+                if ((req: Object).session.uuid) {
+                    visit.sessionId = (req: Object).session.uuid;
                 }
             }
 
-            if (req.uuidAction) {
-                visit.uuidAction = req.uuidAction;
+            if ((req: Object).uuidAction) {
+                visit.uuidAction = (req: Object).uuidAction;
             }
 
             // user agent stuff
